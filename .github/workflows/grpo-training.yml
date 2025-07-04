@@ -1,0 +1,255 @@
+name: GRPO Training Pipeline
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'data/**'
+      - 'config/**'
+      - 'src/**'
+  schedule:
+    # Run daily at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      model_name:
+        description: 'Base model to use'
+        required: false
+        default: 'Qwen/Qwen2.5-7B-Instruct'
+      train_epochs:
+        description: 'Number of training epochs'
+        required: false
+        default: '3'
+
+env:
+  PYTHON_VERSION: '3.10'
+  CUDA_VERSION: '12.1'
+
+jobs:
+  collect-examples:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install -e .
+      
+      - name: Collect code examples
+        env:
+          HANZO_API_KEY: ${{ secrets.HANZO_API_KEY }}
+        run: |
+          python scripts/collect_code_examples.py
+      
+      - name: Upload collected data
+        uses: actions/upload-artifact@v3
+        with:
+          name: daily-examples
+          path: data/daily_collections/
+  
+  train-model:
+    needs: collect-examples
+    runs-on: [self-hosted, gpu]  # Requires GPU runner
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download collected data
+        uses: actions/download-artifact@v3
+        with:
+          name: daily-examples
+          path: data/daily_collections/
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      
+      - name: Cache pip packages
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+      
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install -e .
+      
+      - name: Run training
+        env:
+          WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
+          HANZO_API_KEY: ${{ secrets.HANZO_API_KEY }}
+        run: |
+          python src/train.py \
+            --config config/grpo_config.yaml \
+            --hanzo
+      
+      - name: Upload trained model
+        uses: actions/upload-artifact@v3
+        with:
+          name: trained-model
+          path: outputs/
+  
+  evaluate-model:
+    needs: train-model
+    runs-on: ubuntu-latest
+    outputs:
+      should_deploy: ${{ steps.evaluate.outputs.should_deploy }}
+      metrics: ${{ steps.evaluate.outputs.metrics }}
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download trained model
+        uses: actions/download-artifact@v3
+        with:
+          name: trained-model
+          path: outputs/
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install -e .
+      
+      - name: Evaluate model
+        id: evaluate
+        run: |
+          python scripts/evaluate_model.py \
+            --model-path outputs/checkpoint-final \
+            --output metrics.json
+          
+          # Check if should deploy
+          SCORE=$(jq -r '.code_quality_score' metrics.json)
+          if (( $(echo "$SCORE > 0.85" | bc -l) )); then
+            echo "should_deploy=true" >> $GITHUB_OUTPUT
+          else
+            echo "should_deploy=false" >> $GITHUB_OUTPUT
+          fi
+          
+          echo "metrics=$(cat metrics.json | jq -c .)" >> $GITHUB_OUTPUT
+  
+  deploy-model:
+    needs: evaluate-model
+    if: needs.evaluate-model.outputs.should_deploy == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download trained model
+        uses: actions/download-artifact@v3
+        with:
+          name: trained-model
+          path: outputs/
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      
+      - name: Install Hanzo CLI
+        run: pip install hanzoai-cli
+      
+      - name: Deploy to Hanzo AI
+        env:
+          HANZO_API_KEY: ${{ secrets.HANZO_API_KEY }}
+        run: |
+          hanzo auth login --token $HANZO_API_KEY
+          
+          # Upload model
+          hanzo ml model upload \
+            --path outputs/checkpoint-final \
+            --name grpo-code-quality-${{ github.sha }} \
+            --tags production,grpo,github-actions
+          
+          # Deploy endpoint
+          hanzo ml deploy \
+            --model grpo-code-quality-${{ github.sha }} \
+            --name code-assistant-prod \
+            --replicas 2 \
+            --gpu T4
+      
+      - name: Create release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: model-${{ github.run_number }}
+          release_name: Model Release ${{ github.run_number }}
+          body: |
+            ## Model Metrics
+            ```json
+            ${{ needs.evaluate-model.outputs.metrics }}
+            ```
+            
+            ## Changes
+            - Trained on latest code examples
+            - Model: ${{ github.event.inputs.model_name || 'Qwen/Qwen2.5-7B-Instruct' }}
+            - Epochs: ${{ github.event.inputs.train_epochs || '3' }}
+          draft: false
+          prerelease: false
+  
+  docker-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+      
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+      
+      - name: Build and push Docker images
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          push: true
+          tags: |
+            hanzoai/grpo:latest
+            hanzoai/grpo:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          target: training
+      
+      - name: Build inference image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          push: true
+          tags: |
+            hanzoai/grpo:inference-latest
+            hanzoai/grpo:inference-${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          target: inference
+  
+  notify:
+    needs: [deploy-model, evaluate-model]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send notification
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          text: |
+            GRPO Training Pipeline: ${{ job.status }}
+            Model Quality Score: ${{ fromJSON(needs.evaluate-model.outputs.metrics).code_quality_score }}
+            Deployed: ${{ needs.evaluate-model.outputs.should_deploy }}
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+        if: always()

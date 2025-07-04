@@ -1,0 +1,169 @@
+version: '3.8'
+
+services:
+  # Training service
+  grpo-training:
+    build:
+      context: .
+      target: training
+    image: hanzoai/grpo:training
+    container_name: grpo-training
+    runtime: nvidia
+    environment:
+      - CUDA_VISIBLE_DEVICES=0
+      - WANDB_API_KEY=${WANDB_API_KEY}
+      - HANZO_API_KEY=${HANZO_API_KEY}
+    volumes:
+      - ./data:/app/data
+      - ./models:/app/models
+      - ./outputs:/app/outputs
+      - ./config:/app/config
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    command: >
+      python3 src/train.py
+      --config /app/config/grpo_config.yaml
+      --hanzo
+
+  # Development environment
+  grpo-dev:
+    build:
+      context: .
+      target: development
+    image: hanzoai/grpo:dev
+    container_name: grpo-dev
+    runtime: nvidia
+    environment:
+      - JUPYTER_ENABLE_LAB=yes
+      - CUDA_VISIBLE_DEVICES=0
+    volumes:
+      - .:/app
+      - ~/.cache:/root/.cache
+    ports:
+      - "8888:8888"  # Jupyter
+      - "6006:6006"  # TensorBoard
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    command: >
+      jupyter lab
+      --ip=0.0.0.0
+      --port=8888
+      --no-browser
+      --allow-root
+      --NotebookApp.token=''
+
+  # Inference API service
+  grpo-inference:
+    build:
+      context: .
+      target: inference
+    image: hanzoai/grpo:inference
+    container_name: grpo-inference
+    runtime: nvidia
+    environment:
+      - MODEL_PATH=/app/models/production/latest
+      - CUDA_VISIBLE_DEVICES=0
+    volumes:
+      - ./models:/app/models:ro
+    ports:
+      - "8000:8000"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Daily training cron job
+  grpo-daily-training:
+    build:
+      context: .
+      target: training
+    image: hanzoai/grpo:training
+    container_name: grpo-daily-training
+    runtime: nvidia
+    environment:
+      - CUDA_VISIBLE_DEVICES=0
+      - HANZO_API_KEY=${HANZO_API_KEY}
+    volumes:
+      - ./data:/app/data
+      - ./models:/app/models
+      - ./config:/app/config
+      - ./logs:/app/logs
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    command: >
+      sh -c "while true; do
+        echo 'Running daily training at' $$(date);
+        python3 scripts/daily_training.py --config config/daily_training.yaml;
+        echo 'Sleeping for 24 hours...';
+        sleep 86400;
+      done"
+
+  # Redis for caching
+  redis:
+    image: redis:7-alpine
+    container_name: grpo-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+
+  # PostgreSQL for metadata
+  postgres:
+    image: postgres:15-alpine
+    container_name: grpo-postgres
+    environment:
+      - POSTGRES_DB=grpo
+      - POSTGRES_USER=grpo
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-grpo123}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  # MinIO for model storage
+  minio:
+    image: minio/minio:latest
+    container_name: grpo-minio
+    environment:
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER:-minioadmin}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-minioadmin}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio-data:/data
+    command: server /data --console-address ":9001"
+
+volumes:
+  redis-data:
+  postgres-data:
+  minio-data:
+
+networks:
+  default:
+    name: grpo-network
