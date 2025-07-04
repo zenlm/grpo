@@ -1,0 +1,95 @@
+# GRPO Configuration File
+# This configuration is used for fine-tuning language models using Guided Reinforcement Policy Optimization
+
+model:
+  name: "Qwen/Qwen2.5-7B-Instruct"
+  device_map: "auto"
+  torch_dtype: "auto"
+  load_in_4bit: true
+  bnb_4bit_compute_dtype: "float16"
+  bnb_4bit_use_double_quant: true
+
+lora:
+  r: 16
+  lora_alpha: 32
+  lora_dropout: 0.1
+  bias: "none"
+  task_type: "CAUSAL_LM"
+  target_modules:
+    - "q_proj"
+    - "v_proj"
+    - "k_proj"
+    - "o_proj"
+    - "gate_proj"
+    - "up_proj"
+    - "down_proj"
+
+training:
+  output_dir: "./outputs"
+  num_train_epochs: 3
+  per_device_train_batch_size: 1
+  gradient_accumulation_steps: 8
+  gradient_checkpointing: true
+  learning_rate: 2e-4
+  warmup_ratio: 0.1
+  logging_steps: 10
+  save_steps: 100
+  eval_steps: 100
+  max_steps: 1000
+  fp16: true
+  push_to_hub: false
+  report_to: "wandb"
+
+dataset:
+  path: "examples/skippy/skippy_knowledge_base.csv"
+  max_length: 512
+  train_split: 0.9
+  validation_split: 0.1
+
+reward:
+  # Reward function configuration
+  type: "custom"
+  weights:
+    correctness: 0.4
+    formatting: 0.3
+    technical_precision: 0.3
+  
+  # Reward model settings
+  use_reward_model: false
+  reward_model_path: null
+
+generation:
+  max_new_tokens: 256
+  temperature: 0.7
+  top_p: 0.9
+  do_sample: true
+  num_return_sequences: 1
+
+# Hanzo AI Platform specific settings
+hanzo:
+  project_name: "grpo-skippy"
+  experiment_name: "skippy-assistant-v1"
+  tags:
+    - "grpo"
+    - "skippy"
+    - "fine-tuning"
+  
+  # Resource allocation
+  resources:
+    gpu_type: "A100"
+    gpu_count: 1
+    memory: "32Gi"
+    cpu: "8"
+  
+  # Monitoring
+  monitoring:
+    enable_wandb: true
+    enable_tensorboard: true
+    log_frequency: 10
+  
+  # Deployment
+  deployment:
+    auto_deploy: false
+    endpoint_name: "skippy-assistant"
+    min_replicas: 1
+    max_replicas: 3

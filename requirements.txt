@@ -1,0 +1,45 @@
+# Core ML Libraries
+datasets>=2.14.0
+transformers>=4.35.0
+trl>=0.7.0
+torch>=2.0.0
+peft>=0.6.0
+accelerate>=0.24.0
+
+# Hanzo AI Platform Libraries
+hanzoai>=0.1.0
+hanzoai-ml>=0.1.0
+hanzoai-cli>=0.1.0
+
+# Additional Dependencies
+numpy>=1.24.0
+pandas>=2.0.0
+scikit-learn>=1.3.0
+scipy>=1.10.0
+matplotlib>=3.7.0
+seaborn>=0.12.0
+
+# Utilities
+pyyaml>=6.0
+python-dotenv>=1.0.0
+rich>=13.0.0
+typer>=0.9.0
+click>=8.1.0
+
+# Development Dependencies
+pytest>=7.4.0
+pytest-cov>=4.1.0
+black>=23.0.0
+isort>=5.12.0
+flake8>=6.0.0
+mypy>=1.5.0
+
+# Logging and Monitoring
+loguru>=0.7.0
+wandb>=0.15.0
+tensorboard>=2.14.0
+
+# API and Serving
+fastapi>=0.100.0
+uvicorn>=0.23.0
+pydantic>=2.0.0
