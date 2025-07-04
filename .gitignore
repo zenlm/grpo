@@ -146,6 +146,10 @@ datasets/
 *.jsonl
 *.parquet
 
+# But allow example files
+!examples/**/*.csv
+!examples/**/*.json
+
 # Logs
 logs/
 *.log

@@ -1,0 +1,11 @@
+id,question,answer
+1,"How do I set up a new class communication channel in Skippy?","To set up a new class channel, log in to the Skippy admin panel, navigate to the Channels section, click on 'Create New Channel', fill in the required details, and configure notifications and permissions."
+2,"How can I reset a teacher's password in Skippy?","Log in to the admin panel, go to the Teachers section, select the teacher, click 'Reset Password', and follow the on-screen instructions."
+3,"How do I configure email notifications for parents?","Navigate to the Settings menu, select 'Notifications', choose 'Parent Email Settings', and configure the frequency and types of notifications you want parents to receive."
+4,"What's the process for archiving old class data?","Go to the Data Management section, select 'Archive Classes', choose the academic year you want to archive, review the classes to be archived, and click 'Confirm Archive'."
+5,"How can I generate student attendance reports?","In the Reports section, select 'Attendance Reports', choose the date range and classes, select the export format (PDF or CSV), and click 'Generate Report'."
+6,"How do I add a new teacher to the platform?","Click on 'Users' > 'Teachers' > 'Add New Teacher', enter their details (name, email, subjects), assign them to classes, and send them an invitation email."
+7,"What are the steps to create a parent-teacher conference schedule?","Go to 'Events' > 'Conferences', click 'New Conference Schedule', set the date and time slots, assign teachers, and enable parent booking."
+8,"How can I monitor student activity on the platform?","Access the 'Analytics' dashboard, select 'Student Activity', choose the time period and metrics you want to view, and export the data if needed."
+9,"How do I set up automated grading scales?","Navigate to 'Grading' > 'Grade Scales', click 'Create New Scale', define grade boundaries and point values, and apply it to relevant classes."
+10,"What's the procedure for handling data export requests?","Go to 'Privacy & Compliance', select 'Data Requests', review the pending requests, verify the requester's identity, and export the requested data in the specified format."

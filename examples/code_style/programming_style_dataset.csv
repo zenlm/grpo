@@ -1,0 +1,334 @@
+id,question,answer,rejected_answer
+1,"Write a Python function to calculate factorial","def factorial(n: int) -> int:
+    """"""Calculate factorial of n using recursion.
+    
+    Args:
+        n: Non-negative integer
+        
+    Returns:
+        Factorial of n
+        
+    Raises:
+        ValueError: If n is negative
+    """"""
+    if n < 0:
+        raise ValueError(""Factorial not defined for negative numbers"")
+    if n <= 1:
+        return 1
+    return n * factorial(n - 1)","def fact(x):
+    if x == 0:
+        return 1
+    else:
+        return x * fact(x-1)"
+2,"Create a function to check if a string is a palindrome","def is_palindrome(s: str) -> bool:
+    """"""Check if a string is a palindrome.
+    
+    Args:
+        s: Input string to check
+        
+    Returns:
+        True if palindrome, False otherwise
+    """"""
+    # Clean string: lowercase and remove non-alphanumeric
+    cleaned = ''.join(char.lower() for char in s if char.isalnum())
+    return cleaned == cleaned[::-1]","def palindrome(str):
+    return str == str[::-1]"
+3,"Write a function to find the maximum element in a list","def find_maximum(numbers: List[float]) -> Optional[float]:
+    """"""Find the maximum element in a list.
+    
+    Args:
+        numbers: List of numbers
+        
+    Returns:
+        Maximum value or None if list is empty
+    """"""
+    if not numbers:
+        return None
+    return max(numbers)","def max_num(l):
+    max = l[0]
+    for i in l:
+        if i > max:
+            max = i
+    return max"
+4,"Create a class for a bank account","class BankAccount:
+    """"""Represents a bank account with basic operations.""""""
+    
+    def __init__(self, account_number: str, initial_balance: float = 0.0):
+        """"""Initialize a bank account.
+        
+        Args:
+            account_number: Unique account identifier
+            initial_balance: Starting balance (default: 0.0)
+        """"""
+        self._account_number = account_number
+        self._balance = initial_balance
+        self._transaction_history: List[Dict[str, Any]] = []
+    
+    @property
+    def balance(self) -> float:
+        """"""Get current balance.""""""
+        return self._balance
+    
+    def deposit(self, amount: float) -> None:
+        """"""Deposit money into account.
+        
+        Args:
+            amount: Amount to deposit
+            
+        Raises:
+            ValueError: If amount is negative
+        """"""
+        if amount < 0:
+            raise ValueError(""Deposit amount must be positive"")
+        self._balance += amount
+        self._log_transaction(""deposit"", amount)
+    
+    def withdraw(self, amount: float) -> None:
+        """"""Withdraw money from account.
+        
+        Args:
+            amount: Amount to withdraw
+            
+        Raises:
+            ValueError: If amount is negative or exceeds balance
+        """"""
+        if amount < 0:
+            raise ValueError(""Withdrawal amount must be positive"")
+        if amount > self._balance:
+            raise ValueError(""Insufficient funds"")
+        self._balance -= amount
+        self._log_transaction(""withdrawal"", amount)
+    
+    def _log_transaction(self, type: str, amount: float) -> None:
+        """"""Log transaction internally.""""""
+        self._transaction_history.append({
+            ""type"": type,
+            ""amount"": amount,
+            ""timestamp"": datetime.now(),
+            ""balance"": self._balance
+        })","class Account:
+    def __init__(self, num, bal):
+        self.num = num
+        self.bal = bal
+    
+    def deposit(self, amt):
+        self.bal += amt
+    
+    def withdraw(self, amt):
+        self.bal -= amt"
+5,"Write a function to merge two sorted lists","def merge_sorted_lists(list1: List[int], list2: List[int]) -> List[int]:
+    """"""Merge two sorted lists into a single sorted list.
+    
+    Args:
+        list1: First sorted list
+        list2: Second sorted list
+        
+    Returns:
+        Merged sorted list
+    """"""
+    result = []
+    i = j = 0
+    
+    # Merge while both lists have elements
+    while i < len(list1) and j < len(list2):
+        if list1[i] <= list2[j]:
+            result.append(list1[i])
+            i += 1
+        else:
+            result.append(list2[j])
+            j += 1
+    
+    # Add remaining elements
+    result.extend(list1[i:])
+    result.extend(list2[j:])
+    
+    return result","def merge(a, b):
+    c = a + b
+    c.sort()
+    return c"
+6,"Create an async function to fetch data from an API","async def fetch_user_data(user_id: str, session: aiohttp.ClientSession) -> Dict[str, Any]:
+    """"""Fetch user data from API with proper error handling.
+    
+    Args:
+        user_id: User identifier
+        session: aiohttp session for connection pooling
+        
+    Returns:
+        User data dictionary
+        
+    Raises:
+        HTTPError: If API request fails
+    """"""
+    url = f""https://api.example.com/users/{user_id}""
+    
+    try:
+        async with session.get(url) as response:
+            response.raise_for_status()
+            data = await response.json()
+            return data
+    except aiohttp.ClientError as e:
+        logger.error(f""Failed to fetch user {user_id}: {e}"")
+        raise HTTPError(f""API request failed: {e}"") from e","def get_user(id):
+    import requests
+    resp = requests.get(f""https://api.example.com/users/{id}"")
+    return resp.json()"
+7,"Write a context manager for database connections","class DatabaseConnection:
+    """"""Context manager for database connections with automatic cleanup.""""""
+    
+    def __init__(self, connection_string: str):
+        """"""Initialize with connection string.
+        
+        Args:
+            connection_string: Database connection string
+        """"""
+        self.connection_string = connection_string
+        self.connection: Optional[Connection] = None
+        self.cursor: Optional[Cursor] = None
+    
+    def __enter__(self) -> 'DatabaseConnection':
+        """"""Establish database connection.""""""
+        try:
+            self.connection = psycopg2.connect(self.connection_string)
+            self.cursor = self.connection.cursor()
+            return self
+        except Exception as e:
+            logger.error(f""Failed to connect to database: {e}"")
+            raise
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """"""Clean up database resources.""""""
+        if self.cursor:
+            self.cursor.close()
+        if self.connection:
+            if exc_type is None:
+                self.connection.commit()
+            else:
+                self.connection.rollback()
+            self.connection.close()","def db_connect(conn_str):
+    conn = psycopg2.connect(conn_str)
+    cursor = conn.cursor()
+    return conn, cursor
+
+# usage
+conn, cur = db_connect(""..."")"
+8,"Create a decorator for retry logic","def retry(max_attempts: int = 3, delay: float = 1.0, backoff: float = 2.0):
+    """"""Decorator to retry function calls with exponential backoff.
+    
+    Args:
+        max_attempts: Maximum number of retry attempts
+        delay: Initial delay between retries in seconds
+        backoff: Multiplier for delay after each retry
+        
+    Returns:
+        Decorated function
+    """"""
+    def decorator(func: Callable) -> Callable:
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            last_exception = None
+            current_delay = delay
+            
+            for attempt in range(max_attempts):
+                try:
+                    return func(*args, **kwargs)
+                except Exception as e:
+                    last_exception = e
+                    if attempt < max_attempts - 1:
+                        logger.warning(
+                            f""Attempt {attempt + 1}/{max_attempts} failed: {e}. ""
+                            f""Retrying in {current_delay}s...""
+                        )
+                        time.sleep(current_delay)
+                        current_delay *= backoff
+                    else:
+                        logger.error(f""All {max_attempts} attempts failed"")
+            
+            raise last_exception
+        
+        return wrapper
+    return decorator","def retry(func):
+    def wrapper(*args, **kwargs):
+        for i in range(3):
+            try:
+                return func(*args, **kwargs)
+            except:
+                if i == 2:
+                    raise
+                time.sleep(1)
+    return wrapper"
+9,"Write a function to validate email addresses","def validate_email(email: str) -> bool:
+    """"""Validate email address format.
+    
+    Args:
+        email: Email address to validate
+        
+    Returns:
+        True if valid email format, False otherwise
+    """"""
+    # RFC 5322 compliant email regex
+    pattern = re.compile(
+        r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    )
+    
+    if not email or not isinstance(email, str):
+        return False
+    
+    # Check basic format
+    if not pattern.match(email):
+        return False
+    
+    # Additional checks
+    if email.count('@') != 1:
+        return False
+    
+    local, domain = email.split('@')
+    
+    # Check local part
+    if not local or len(local) > 64:
+        return False
+    
+    # Check domain
+    if not domain or len(domain) > 253:
+        return False
+    
+    return True","def check_email(email):
+    return '@' in email"
+10,"Create a thread-safe singleton class","class Singleton:
+    """"""Thread-safe singleton implementation using double-checked locking.""""""
+    
+    _instance: Optional['Singleton'] = None
+    _lock: threading.Lock = threading.Lock()
+    
+    def __new__(cls):
+        # First check without locking
+        if cls._instance is None:
+            # Acquire lock for thread safety
+            with cls._lock:
+                # Double-check after acquiring lock
+                if cls._instance is None:
+                    cls._instance = super().__new__(cls)
+                    cls._instance._initialized = False
+        return cls._instance
+    
+    def __init__(self):
+        # Ensure initialization only happens once
+        if not self._initialized:
+            self._initialized = True
+            self._config = {}
+            logger.info(""Singleton instance initialized"")
+    
+    def set_config(self, key: str, value: Any) -> None:
+        """"""Set configuration value.""""""
+        with self._lock:
+            self._config[key] = value
+    
+    def get_config(self, key: str) -> Any:
+        """"""Get configuration value.""""""
+        with self._lock:
+            return self._config.get(key)","class Singleton:
+    instance = None
+    
+    def __new__(cls):
+        if not cls.instance:
+            cls.instance = super().__new__(cls)
+        return cls.instance"
