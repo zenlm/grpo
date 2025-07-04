@@ -1,0 +1,155 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: grpo-training-pipeline-
+  annotations:
+    pipelines.kubeflow.org/kfp_sdk_version: "1.8.0"
+    pipelines.kubeflow.org/pipeline_compilation_time: "2024-01-01T00:00:00"
+    pipelines.kubeflow.org/pipeline_spec: |
+      {"description": "GRPO training pipeline for Hanzo AI platform", "name": "GRPO Training Pipeline"}
+spec:
+  entrypoint: grpo-training-pipeline
+  templates:
+  - name: grpo-training-pipeline
+    dag:
+      tasks:
+      - name: data-preparation
+        template: prepare-data
+        arguments:
+          parameters:
+          - name: dataset_path
+            value: "{{workflow.parameters.dataset_path}}"
+      
+      - name: model-training
+        template: train-model
+        dependencies: [data-preparation]
+        arguments:
+          parameters:
+          - name: config_path
+            value: "{{workflow.parameters.config_path}}"
+          artifacts:
+          - name: prepared-data
+            from: "{{tasks.data-preparation.outputs.artifacts.processed-data}}"
+      
+      - name: model-evaluation
+        template: evaluate-model
+        dependencies: [model-training]
+        arguments:
+          artifacts:
+          - name: trained-model
+            from: "{{tasks.model-training.outputs.artifacts.model}}"
+      
+      - name: model-deployment
+        template: deploy-model
+        dependencies: [model-evaluation]
+        when: "{{tasks.model-evaluation.outputs.parameters.deploy}} == true"
+        arguments:
+          artifacts:
+          - name: model
+            from: "{{tasks.model-training.outputs.artifacts.model}}"
+
+  - name: prepare-data
+    container:
+      image: hanzoai/grpo:latest
+      command: [python]
+      args:
+        - /app/scripts/prepare_dataset.py
+        - --input={{inputs.parameters.dataset_path}}
+        - --output=/output/processed_data.jsonl
+      volumeMounts:
+      - name: output
+        mountPath: /output
+    inputs:
+      parameters:
+      - name: dataset_path
+    outputs:
+      artifacts:
+      - name: processed-data
+        path: /output/processed_data.jsonl
+
+  - name: train-model
+    container:
+      image: hanzoai/grpo:latest
+      command: [python]
+      args:
+        - /app/src/train.py
+        - --config={{inputs.parameters.config_path}}
+        - --data=/input/processed_data.jsonl
+        - --output=/output/model
+      resources:
+        requests:
+          memory: "32Gi"
+          cpu: "8"
+          nvidia.com/gpu: "1"
+        limits:
+          memory: "64Gi"
+          cpu: "16"
+          nvidia.com/gpu: "1"
+      volumeMounts:
+      - name: input
+        mountPath: /input
+      - name: output
+        mountPath: /output
+    inputs:
+      parameters:
+      - name: config_path
+      artifacts:
+      - name: prepared-data
+        path: /input/processed_data.jsonl
+    outputs:
+      artifacts:
+      - name: model
+        path: /output/model
+      - name: metrics
+        path: /output/metrics.json
+
+  - name: evaluate-model
+    container:
+      image: hanzoai/grpo:latest
+      command: [python]
+      args:
+        - /app/scripts/evaluate.py
+        - --model=/input/model
+        - --threshold=0.85
+      volumeMounts:
+      - name: input
+        mountPath: /input
+    inputs:
+      artifacts:
+      - name: trained-model
+        path: /input/model
+    outputs:
+      parameters:
+      - name: deploy
+        valueFrom:
+          path: /tmp/deploy.txt
+      - name: metrics
+        valueFrom:
+          path: /tmp/metrics.json
+
+  - name: deploy-model
+    container:
+      image: hanzoai/grpo:latest
+      command: [python]
+      args:
+        - /app/scripts/deploy_to_hanzo.py
+        - --model=/input/model
+        - --name=grpo-model
+        - --endpoint=production
+    inputs:
+      artifacts:
+      - name: model
+        path: /input/model
+
+  volumes:
+  - name: input
+    emptyDir: {}
+  - name: output
+    emptyDir: {}
+
+  arguments:
+    parameters:
+    - name: dataset_path
+      value: "gs://hanzo-datasets/grpo/skippy_knowledge_base.csv"
+    - name: config_path
+      value: "gs://hanzo-configs/grpo/grpo_config.yaml"
